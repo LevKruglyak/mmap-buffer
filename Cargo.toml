@@ -1,0 +1,18 @@
+[package]
+name = "mmap_buffer"
+version = "0.1.0"
+authors = ["Lev Kruglyak <lev.kruglyak2014@gmail.com>"]
+license = "MIT"
+description = "(Mostly) safe wrapper for a memory-backed buffer."
+repository = "https://github.com/LevKruglyak/mmap-buffer"
+edition = "2021"
+keywords = ["mmap"]
+
+[dependencies]
+fs2 = "0.4.3"
+memmap2 = "0.5.10"
+bytemuck = { version = "1.13.1", features = ["extern_crate_std"] }
+derive_more = "0.99.17"
+
+[dev-dependencies]
+tempfile = "3"
