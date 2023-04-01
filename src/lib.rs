@@ -39,6 +39,44 @@ use derive_more::{AsMut, AsRef};
 use fs2::FileExt;
 use memmap2::MmapOptions;
 
+/// Helpful abstraction for some buffer, either backed by
+/// a file, or stored in memory
+pub enum Buffer<T: Pod> {
+    /// Buffer backed by a file
+    Disk(BackedBuffer<T>),
+    /// In-memory buffer
+    Memory(Vec<T>),
+}
+
+impl<T: Pod> Buffer<T> {
+    /// Create a new buffer at the given path with a fixed capacity.
+    /// This capacity is in units of `T`, not in bytes
+    pub fn new_on_disk(capacity: usize, path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        Ok(Self::Disk(BackedBuffer::new(capacity, path)?))
+    }
+
+    /// Create a new buffer with fixed capacity in memory
+    pub fn new_in_memory(capacity: usize) -> Self {
+        Self::Memory(vec![T::zeroed(); capacity])
+    }
+
+    /// Load a buffer from an existing path.
+    pub fn load_from_disk(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        Ok(Self::Disk(BackedBuffer::load(path)?))
+    }
+
+    /// Create an (in-memory) buffer from a vector
+    pub fn from_vec_in_memory(data: Vec<T>) -> Self {
+        Self::Memory(data)
+    }
+
+    /// Creates a new buffer at the given path and copies the contents of
+    /// the slice to it. The created buffer will be the same size as the slice.
+    pub fn from_slice_on_disk(data: &[T], path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+        Ok(Self::Disk(BackedBuffer::copy_from_slice(data, path)?))
+    }
+}
+
 /// A fixed size, mutable buffer of `T` backed by a file.
 /// In order to avoid copying when reading and writing from such
 /// a buffer, we require that `T: Pod`.
@@ -81,7 +119,7 @@ impl<T: Pod> BackedBuffer<T> {
         unsafe { Self::from_file(file) }
     }
 
-    /// Load a buffer from an existing buffer.
+    /// Load a buffer from an existing path.
     pub fn load(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let file = OpenOptions::new().read(true).write(true).open(path)?;
 
@@ -131,6 +169,46 @@ impl<T: Pod> DerefMut for BackedBuffer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: should predictably panic if file corrupted
         try_cast_slice_mut(&mut self.mmap[..]).unwrap()
+    }
+}
+
+impl<T: Pod> Deref for Buffer<T> {
+    type Target = [T];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Disk(backed_buffer) => backed_buffer.deref(),
+            Self::Memory(vector) => vector.deref(),
+        }
+    }
+}
+
+impl<T: Pod> DerefMut for Buffer<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Disk(backed_buffer) => backed_buffer.deref_mut(),
+            Self::Memory(vector) => vector.deref_mut(),
+        }
+    }
+}
+
+impl<T: Pod> AsRef<[T]> for Buffer<T> {
+    fn as_ref(&self) -> &[T] {
+        match self {
+            Self::Disk(data) => data.deref(),
+            Self::Memory(data) => data.deref(),
+        }
+    }
+}
+
+impl<T: Pod> AsMut<[T]> for Buffer<T> {
+    fn as_mut(&mut self) -> &mut [T] {
+        match self {
+            Self::Disk(data) => data.deref_mut(),
+            Self::Memory(data) => data.deref_mut(),
+        }
     }
 }
 
