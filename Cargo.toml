@@ -12,7 +12,6 @@ keywords = ["mmap"]
 fs2 = "0.4.3"
 memmap2 = "0.5.10"
 bytemuck = { version = "1.13.1", features = ["extern_crate_std"] }
-derive_more = "0.99.17"
 
 [dev-dependencies]
 tempfile = "3"
