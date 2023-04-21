@@ -187,7 +187,7 @@ impl<T: Pod> Deref for BackedBuffer<T> {
     #[inline]
     fn deref(&self) -> &Self::Target {
         // SAFETY: should predictably panic if file corrupted
-        try_cast_slice(&self.mmap[..self.len]).unwrap()
+        &try_cast_slice(&self.mmap[..]).unwrap()[..self.len]
     }
 }
 
@@ -195,7 +195,7 @@ impl<T: Pod> DerefMut for BackedBuffer<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: should predictably panic if file corrupted
-        try_cast_slice_mut(&mut self.mmap[..self.len]).unwrap()
+        &mut try_cast_slice_mut(&mut self.mmap[..]).unwrap()[..self.len]
     }
 }
 
