@@ -1,6 +1,6 @@
 [package]
 name = "mmap_buffer"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Lev Kruglyak <lev.kruglyak2014@gmail.com>"]
 license = "MIT"
 description = "(Mostly) safe wrapper for a memory-backed buffer."

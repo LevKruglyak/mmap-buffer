@@ -75,6 +75,20 @@ impl<T: Pod> Buffer<T> {
     pub fn from_slice_on_disk(data: &[T], path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         Ok(Self::Disk(BackedBuffer::copy_from_slice(data, path)?))
     }
+
+    /// Shrink the `Buffer` so that users cannot access past this new
+    /// length. In the case that the buffer is backed, doesn't actually reduce
+    /// the size of the file, this is a very low cost operation.
+    pub fn shrink(&mut self, new_len: usize) {
+        assert!(
+            new_len <= self.len(),
+            "`new_len` must be less than current length!"
+        );
+        match self {
+            Self::Disk(buffer) => buffer.shrink(new_len),
+            Self::Memory(buffer) => buffer.resize(new_len, T::zeroed()),
+        }
+    }
 }
 
 /// A fixed size, mutable buffer of `T` backed by a file.
@@ -83,6 +97,7 @@ impl<T: Pod> Buffer<T> {
 #[derive(AsRef, AsMut)]
 pub struct BackedBuffer<T: Pod> {
     mmap: memmap2::MmapMut,
+    len: usize,
     file: Option<File>,
     _ph: PhantomData<T>,
 }
@@ -136,6 +151,17 @@ impl<T: Pod> BackedBuffer<T> {
         Ok(buf)
     }
 
+    /// Shrink the `BackedBuffer` so that users cannot access past this new
+    /// length. Doesn't actually reduce the size of the file, this is a very
+    /// low cost operation.
+    pub fn shrink(&mut self, new_len: usize) {
+        assert!(
+            new_len <= self.len(),
+            "`new_len` must be less than current length!"
+        );
+        self.len = new_len;
+    }
+
     /// SAFETY: cannot `guarantee` advisory locks will work in this case, even
     /// within the same program (File clone does weird stuff)
     unsafe fn from_file(file: File) -> Result<Self, Box<dyn Error>> {
@@ -144,11 +170,12 @@ impl<T: Pod> BackedBuffer<T> {
 
         // Catch alignment issues ahead of time
         let mmap = unsafe { MmapOptions::new().populate().map_mut(&file)? };
-        let _: &[T] = try_cast_slice(&mmap[..])?;
+        let len = try_cast_slice::<u8, T>(&mmap[..])?.len();
 
         Ok(Self {
             mmap,
             file: Some(file),
+            len,
             _ph: PhantomData,
         })
     }
@@ -160,7 +187,7 @@ impl<T: Pod> Deref for BackedBuffer<T> {
     #[inline]
     fn deref(&self) -> &Self::Target {
         // SAFETY: should predictably panic if file corrupted
-        try_cast_slice(&self.mmap[..]).unwrap()
+        try_cast_slice(&self.mmap[..self.len]).unwrap()
     }
 }
 
@@ -168,7 +195,7 @@ impl<T: Pod> DerefMut for BackedBuffer<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY: should predictably panic if file corrupted
-        try_cast_slice_mut(&mut self.mmap[..]).unwrap()
+        try_cast_slice_mut(&mut self.mmap[..self.len]).unwrap()
     }
 }
 
