@@ -35,7 +35,6 @@ use std::{
 };
 
 use bytemuck::{try_cast_slice, try_cast_slice_mut, Pod};
-use derive_more::{AsMut, AsRef};
 use fs2::FileExt;
 use memmap2::MmapOptions;
 
@@ -94,7 +93,6 @@ impl<T: Pod> Buffer<T> {
 /// A fixed size, mutable buffer of `T` backed by a file.
 /// In order to avoid copying when reading and writing from such
 /// a buffer, we require that `T: Pod`.
-#[derive(AsRef, AsMut)]
 pub struct BackedBuffer<T: Pod> {
     mmap: memmap2::MmapMut,
     len: usize,
@@ -178,6 +176,18 @@ impl<T: Pod> BackedBuffer<T> {
             len,
             _ph: PhantomData,
         })
+    }
+}
+
+impl<T: Pod> AsRef<[T]> for BackedBuffer<T> {
+    fn as_ref(&self) -> &[T] {
+        self.deref()
+    }
+}
+
+impl<T: Pod> AsMut<[T]> for BackedBuffer<T> {
+    fn as_mut(&mut self) -> &mut [T] {
+        self.deref_mut()
     }
 }
 
